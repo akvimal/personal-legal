@@ -1,20 +1,18 @@
 /**
- * PUT /api/notifications/[id] - Mark notification as read
- * DELETE /api/notifications/[id] - Delete notification
+ * PUT /api/notifications/:id/read - Mark notification as read
+ * DELETE /api/notifications/:id - Delete notification
  */
 
 import { NextRequest } from 'next/server';
-import prisma from '@/lib/prisma';
 import { successResponse, ApiErrors, handleApiError } from '@/lib/api-response';
 import { getUserFromRequest } from '@/lib/api-auth';
+import { markNotificationAsRead, deleteNotification } from '@/lib/notification-service';
 
-interface RouteParams {
-  params: {
-    id: string;
-  };
+interface RouteContext {
+  params: Promise<{ id: string }>;
 }
 
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export async function PUT(request: NextRequest, context: RouteContext) {
   try {
     // Authenticate user
     const tokenPayload = await getUserFromRequest(request);
@@ -22,36 +20,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return ApiErrors.unauthorized();
     }
 
-    const { id } = params;
+    const { id } = await context.params;
 
-    // Check if notification exists and belongs to user
-    const existingNotification = await prisma.notification.findFirst({
-      where: {
-        id,
-        userId: tokenPayload.userId,
-      },
-    });
+    const notification = await markNotificationAsRead(id, tokenPayload.userId);
 
-    if (!existingNotification) {
-      return ApiErrors.notFound('Notification');
-    }
-
-    // Mark as read
-    const notification = await prisma.notification.update({
-      where: { id },
-      data: {
-        isRead: true,
-        readAt: new Date(),
-      },
-    });
-
-    return successResponse(notification);
+    return successResponse({ notification });
   } catch (error) {
     return handleApiError(error);
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     // Authenticate user
     const tokenPayload = await getUserFromRequest(request);
@@ -59,28 +38,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return ApiErrors.unauthorized();
     }
 
-    const { id } = params;
+    const { id } = await context.params;
 
-    // Check if notification exists and belongs to user
-    const existingNotification = await prisma.notification.findFirst({
-      where: {
-        id,
-        userId: tokenPayload.userId,
-      },
-    });
+    await deleteNotification(id, tokenPayload.userId);
 
-    if (!existingNotification) {
-      return ApiErrors.notFound('Notification');
-    }
-
-    // Delete notification
-    await prisma.notification.delete({
-      where: { id },
-    });
-
-    return successResponse({
-      message: 'Notification deleted successfully',
-    });
+    return successResponse({ success: true });
   } catch (error) {
     return handleApiError(error);
   }

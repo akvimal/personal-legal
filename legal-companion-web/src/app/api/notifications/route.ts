@@ -1,18 +1,12 @@
 /**
- * GET /api/notifications - List notifications with pagination and filters
- * POST /api/notifications - Create notification (internal use)
+ * GET /api/notifications - Get user notifications
+ * Returns paginated list of notifications for the authenticated user
  */
 
 import { NextRequest } from 'next/server';
-import prisma from '@/lib/prisma';
-import {
-  successResponse,
-  createdResponse,
-  ApiErrors,
-  handleApiError,
-} from '@/lib/api-response';
+import { successResponse, ApiErrors, handleApiError } from '@/lib/api-response';
 import { getUserFromRequest } from '@/lib/api-auth';
-import { parsePaginationParams } from '@/lib/api-validation';
+import { getUserNotifications } from '@/lib/notification-service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,82 +16,13 @@ export async function GET(request: NextRequest) {
       return ApiErrors.unauthorized();
     }
 
-    const searchParams = request.nextUrl.searchParams;
-    const { page, limit, skip } = parsePaginationParams(searchParams);
+    const { searchParams } = new URL(request.url);
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const unreadOnly = searchParams.get('unreadOnly') === 'true';
 
-    // Build filters
-    const where: any = {
-      userId: tokenPayload.userId,
-    };
+    const notifications = await getUserNotifications(tokenPayload.userId, limit, unreadOnly);
 
-    // Read status filter
-    const isRead = searchParams.get('isRead');
-    if (isRead !== null) {
-      where.isRead = isRead === 'true';
-    }
-
-    // Type filter
-    const type = searchParams.get('type');
-    if (type) {
-      where.type = type;
-    }
-
-    // Fetch notifications
-    const [notifications, total, unreadCount] = await Promise.all([
-      prisma.notification.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.notification.count({ where }),
-      prisma.notification.count({
-        where: {
-          userId: tokenPayload.userId,
-          isRead: false,
-        },
-      }),
-    ]);
-
-    return successResponse(
-      notifications,
-      {
-        page,
-        limit,
-        total,
-        unreadCount,
-      }
-    );
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    // Authenticate user
-    const tokenPayload = await getUserFromRequest(request);
-    if (!tokenPayload) {
-      return ApiErrors.unauthorized();
-    }
-
-    const body = await request.json();
-
-    // Create notification
-    const notification = await prisma.notification.create({
-      data: {
-        userId: tokenPayload.userId,
-        type: body.type || 'info',
-        title: body.title,
-        message: body.message,
-        documentId: body.documentId || null,
-        eventId: body.eventId || null,
-        taskId: body.taskId || null,
-        actions: body.actions || null,
-      },
-    });
-
-    return createdResponse(notification);
+    return successResponse({ notifications });
   } catch (error) {
     return handleApiError(error);
   }
