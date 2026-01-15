@@ -35,3 +35,7 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# uploads directory
+/uploads/*
+!/uploads/README.md

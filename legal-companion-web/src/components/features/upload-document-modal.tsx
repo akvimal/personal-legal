@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { DocumentCategory } from '@/types';
 import { categoryLabels } from '@/lib/mock-data';
+import { uploadFile, type FileUploadPayload } from '@/lib/file-upload';
+import { useAuthStore } from '@/stores/authStore';
 import {
   X,
   Upload,
@@ -87,30 +89,51 @@ export function UploadDocumentModal({ isOpen, onClose, onUpload }: UploadDocumen
     }
   };
 
+  const { user } = useAuthStore();
+
   const handleSubmit = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile || !title || !user) return;
 
     setUploading(true);
 
-    // Simulate upload process
-    setTimeout(() => {
-      const metadata = {
-        title: title || selectedFile.name,
-        tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+    try {
+      // Prepare document data
+      const payload: FileUploadPayload = {
+        file: selectedFile,
+        documentData: {
+          title: title || selectedFile.name,
+          category,
+          documentType: category, // Using category as document type for now
+          country: user.location?.includes('India') ? 'India' : 'Unknown',
+          region: user.location?.includes('Tamil Nadu') ? 'Tamil Nadu' : 'Unknown',
+          language: 'en',
+          tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+          parties: [], // Can be extracted later
+        },
       };
 
-      if (onUpload) {
-        onUpload(selectedFile, category, metadata);
+      // Upload file
+      const result = await uploadFile(payload);
+
+      if (result.success) {
+        setUploadSuccess(true);
+        if (onUpload) {
+          onUpload(selectedFile, category, { title, tags });
+        }
+
+        // Auto-close after success
+        setTimeout(() => {
+          handleClose();
+        }, 1500);
+      } else {
+        alert(result.error || 'Upload failed. Please try again.');
+        setUploading(false);
       }
-
-      setUploadSuccess(true);
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Upload failed. Please try again.');
       setUploading(false);
-
-      // Auto-close after success
-      setTimeout(() => {
-        handleClose();
-      }, 1500);
-    }, 2000);
+    }
   };
 
   const handleClose = () => {
