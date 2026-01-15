@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { useAuthStore } from '@/stores';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
@@ -35,6 +36,7 @@ const navigation = [
 export function Sidebar() {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user } = useAuthStore();
 
   return (
     <>
@@ -101,14 +103,20 @@ export function Sidebar() {
           <div className="border-t border-gray-200 px-6 py-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-sm font-semibold text-primary">RK</span>
+                {user?.avatarUrl ? (
+                  <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full rounded-full object-cover" />
+                ) : (
+                  <span className="text-sm font-semibold text-primary">
+                    {user?.fullName.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                  </span>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
-                  Rajesh Kumar
+                  {user?.fullName || 'User'}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  Tamil Nadu, India
+                  {user?.location || 'Location not set'}
                 </p>
               </div>
             </div>

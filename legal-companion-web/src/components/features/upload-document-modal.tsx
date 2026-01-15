@@ -182,15 +182,15 @@ export function UploadDocumentModal({ isOpen, onClose, onUpload }: UploadDocumen
                         </p>
                         <p className="text-sm text-gray-500 mt-1">or</p>
                       </div>
-                      <label>
+                      <label className="inline-block">
                         <input
                           type="file"
                           className="hidden"
                           accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
                           onChange={handleFileChange}
                         />
-                        <Button variant="outline" size="sm" className="cursor-pointer" asChild>
-                          <span>Browse Files</span>
+                        <Button variant="outline" size="sm" className="cursor-pointer" type="button">
+                          Browse Files
                         </Button>
                       </label>
                       <p className="text-xs text-gray-500 mt-2">

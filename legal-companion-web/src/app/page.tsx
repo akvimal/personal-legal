@@ -336,7 +336,6 @@ export default function DashboardPage() {
       <UploadDocumentModal
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
-        documents={allDocuments}
         onUpload={(file, category, metadata) => {
           console.log('Document uploaded:', { file, category, metadata });
         }}

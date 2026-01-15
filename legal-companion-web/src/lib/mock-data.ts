@@ -730,7 +730,7 @@ export const mockInsurancePolicies: InsurancePolicy[] = [
     status: 'active',
     coverage: [
       { type: 'Own Damage', amount: 800000, description: 'IDV coverage for vehicle damage' },
-      { type: 'Third Party Liability', amount: 'Unlimited', description: 'Legal liability coverage' },
+      { type: 'Third Party Liability', amount: 99999999, description: 'Legal liability coverage (Unlimited)' },
       { type: 'Personal Accident Cover', amount: 1500000, description: 'For owner-driver' },
     ],
     exclusions: [
