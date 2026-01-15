@@ -33,6 +33,7 @@ model User {
   preferences           UserPreferences?
   emailConnections      EmailConnection[]
   driveConnections      DriveConnection[]
+  calendarConnections   CalendarConnection[]
   insurancePolicies     InsurancePolicy[]
   legalGuidanceRequests LegalGuidanceRequest[]
 
@@ -159,8 +160,9 @@ model Event {
   updatedAt DateTime @updatedAt
 
   // Relations
-  reminders Reminder[]
-  tasks     Task[]
+  reminders    Reminder[]
+  tasks        Task[]
+  calendarSync CalendarSyncedEvent?
 
   @@index([userId])
   @@index([documentId])
@@ -543,4 +545,76 @@ model LegalGuidanceRequest {
   @@index([category])
   @@index([createdAt])
   @@map("legal_guidance_requests")
+}
+
+// ============================================================================
+// CALENDAR INTEGRATION
+// ============================================================================
+
+model CalendarConnection {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider String // 'google' | 'outlook' | 'caldav'
+  email    String
+  status   String @default("connected") // 'connected' | 'disconnected' | 'error' | 'syncing'
+
+  // Calendar settings
+  calendarId   String
+  calendarName String
+  timeZone     String @default("UTC")
+
+  // Sync settings
+  autoSync      Boolean  @default(true)
+  syncFrequency String   @default("realtime") // 'realtime' | 'hourly' | 'daily' | 'manual'
+  twoWaySync    Boolean  @default(false) // Enable bidirectional sync
+  lastSync      DateTime?
+  nextSync      DateTime?
+
+  // OAuth tokens (encrypted)
+  accessToken  String?   @db.Text
+  refreshToken String?   @db.Text
+  tokenExpiry  DateTime?
+
+  // Webhook info
+  webhookId      String?
+  webhookChannel String?
+  webhookExpiry  DateTime?
+
+  connectedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  syncedEvents CalendarSyncedEvent[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("calendar_connections")
+}
+
+model CalendarSyncedEvent {
+  id           String             @id @default(uuid())
+  connectionId String
+  connection   CalendarConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  // Event IDs
+  eventId         String  @unique // Our internal event ID
+  event           Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  externalEventId String? // Calendar provider's event ID
+
+  // Sync info
+  syncStatus     String    @default("synced") // 'synced' | 'pending' | 'error' | 'conflict'
+  lastSyncAt     DateTime?
+  syncDirection  String? // 'app_to_calendar' | 'calendar_to_app' | 'bidirectional'
+  conflictReason String?
+  errorMessage   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([connectionId])
+  @@index([eventId])
+  @@index([externalEventId])
+  @@map("calendar_synced_events")
 }
