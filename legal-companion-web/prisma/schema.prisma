@@ -1,0 +1,546 @@
+// Personal Legal Companion - Database Schema
+// Prisma Schema for PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// USER & AUTHENTICATION
+// ============================================================================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String? // Nullable for OAuth users
+  fullName  String
+  location  String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  documents             Document[]
+  events                Event[]
+  tasks                 Task[]
+  notifications         Notification[]
+  chatMessages          ChatMessage[]
+  preferences           UserPreferences?
+  emailConnections      EmailConnection[]
+  driveConnections      DriveConnection[]
+  insurancePolicies     InsurancePolicy[]
+  legalGuidanceRequests LegalGuidanceRequest[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model UserPreferences {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  country  String @default("India")
+  region   String @default("Tamil Nadu")
+  language String @default("en")
+
+  // Notification settings
+  emailNotifications Boolean @default(true)
+  pushNotifications  Boolean @default(true)
+  smsNotifications   Boolean @default(false)
+  quietHoursStart    String?
+  quietHoursEnd      String?
+
+  // Reminder settings
+  defaultReminderDays Int[] @default([1, 3, 7])
+
+  // AI settings
+  aiAssistance String @default("moderate") // 'proactive' | 'moderate' | 'minimal'
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_preferences")
+}
+
+// ============================================================================
+// DOCUMENTS
+// ============================================================================
+
+model Document {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title        String
+  category     String // 'employment' | 'property' | 'business' | 'financial' | 'insurance' | 'consumer' | 'family' | 'legal'
+  documentType String
+  status       String @default("active") // 'active' | 'expiring_soon' | 'expired' | 'archived'
+
+  // File info
+  filePath String
+  fileType String
+  fileSize Int
+  pages    Int?
+
+  // Dates
+  uploadedAt DateTime  @default(now())
+  signedDate DateTime?
+  startDate  DateTime?
+  endDate    DateTime?
+
+  // Parties and tags
+  parties String[]
+  tags    String[]
+
+  // Location
+  country  String
+  region   String
+  language String @default("en")
+
+  // Metadata (JSONB for flexible storage)
+  metadata Json?
+
+  // Counters
+  upcomingEvents Int @default(0)
+  pendingTasks   Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  events          Event[]
+  tasks           Task[]
+  chatMessages    ChatMessage[]
+  insurancePolicy InsurancePolicy?
+  driveFile       DriveFile?
+
+  @@index([userId])
+  @@index([category])
+  @@index([status])
+  @@index([endDate])
+  @@map("documents")
+}
+
+// ============================================================================
+// EVENTS & REMINDERS
+// ============================================================================
+
+model Event {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  eventType   String // 'contract_expiry' | 'payment_due' | 'renewal_date' | 'review_date' | 'obligation_end' | 'milestone'
+  title       String
+  description String
+  eventDate   DateTime
+  priority    String // 'critical' | 'high' | 'medium' | 'low'
+
+  // Recurrence
+  isRecurring       Boolean @default(false)
+  recurrencePattern String?
+
+  // Additional info
+  responsibleParty  String?
+  consequence       String?
+  advanceNoticeDays Int?
+
+  status String @default("upcoming") // 'upcoming' | 'completed' | 'missed' | 'dismissed'
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  reminders Reminder[]
+  tasks     Task[]
+
+  @@index([userId])
+  @@index([documentId])
+  @@index([eventDate])
+  @@index([status])
+  @@index([priority])
+  @@map("events")
+}
+
+model Reminder {
+  id      String @id @default(uuid())
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  daysBefore Int
+  sent       Boolean   @default(false)
+  sentAt     DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([eventId])
+  @@index([sent])
+  @@map("reminders")
+}
+
+// ============================================================================
+// TASKS
+// ============================================================================
+
+model Task {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  eventId    String?
+  event      Event?    @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  title       String
+  description String?
+  dueDate     DateTime?
+  priority    String // 'critical' | 'high' | 'medium' | 'low'
+  status      String    @default("pending") // 'pending' | 'in_progress' | 'completed'
+
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+// ============================================================================
+// NOTIFICATIONS
+// ============================================================================
+
+model Notification {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    String // 'critical' | 'warning' | 'info' | 'success'
+  title   String
+  message String
+
+  // Links
+  documentId String?
+  eventId    String?
+  taskId     String?
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  // Actions (stored as JSON)
+  actions Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([type])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ============================================================================
+// AI ASSISTANT
+// ============================================================================
+
+model ChatMessage {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  role    String // 'user' | 'assistant'
+  content String @db.Text
+  sources Json? // Array of document sources
+
+  timestamp DateTime @default(now())
+
+  @@index([userId])
+  @@index([documentId])
+  @@index([timestamp])
+  @@map("chat_messages")
+}
+
+// ============================================================================
+// TEMPLATES
+// ============================================================================
+
+model Template {
+  id          String   @id @default(uuid())
+  title       String
+  category    String // Same as Document category
+  country     String
+  region      String
+  languages   String[]
+  description String   @db.Text
+
+  // Template structure (stored as JSON)
+  fields  Json // Array of TemplateField
+  clauses String[]
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([country])
+  @@index([isActive])
+  @@map("templates")
+}
+
+// ============================================================================
+// EMAIL INTEGRATION
+// ============================================================================
+
+model EmailConnection {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider String // 'gmail' | 'outlook' | 'yahoo' | 'imap'
+  email    String
+  status   String @default("connected") // 'connected' | 'disconnected' | 'error'
+
+  // Sync settings
+  syncFrequency String    @default("realtime") // 'realtime' | 'hourly' | 'daily'
+  lastSync      DateTime?
+
+  // OAuth tokens (encrypted)
+  accessToken  String?   @db.Text
+  refreshToken String?   @db.Text
+  tokenExpiry  DateTime?
+
+  connectedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  processedEmails ProcessedEmail[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("email_connections")
+}
+
+model ProcessedEmail {
+  id           String          @id @default(uuid())
+  connectionId String
+  connection   EmailConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  subject    String
+  from       String
+  receivedAt DateTime
+
+  isLegal  Boolean @default(false)
+  category String? // 'subscription' | 'contract' | 'agreement' | 'notice' | 'other'
+  priority String  @default("medium") // 'high' | 'medium' | 'low'
+
+  // Extracted terms (stored as JSON)
+  extractedTerms Json?
+
+  reviewStatus String @default("pending") // 'pending' | 'approved' | 'rejected'
+
+  createdAt DateTime @default(now())
+
+  @@index([connectionId])
+  @@index([isLegal])
+  @@index([receivedAt])
+  @@map("processed_emails")
+}
+
+// ============================================================================
+// GOOGLE DRIVE INTEGRATION
+// ============================================================================
+
+model DriveConnection {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  googleAccountEmail String
+  status             String @default("connected") // 'connected' | 'disconnected' | 'error' | 'syncing'
+
+  // Folder settings
+  folderId          String
+  folderName        String
+  folderPath        String
+  includeSubfolders Boolean @default(true)
+
+  // Sync settings
+  autoSync      Boolean  @default(true)
+  syncFrequency String   @default("realtime") // 'realtime' | 'hourly' | 'daily' | 'manual'
+  fileTypes     String[]
+
+  // Sync stats
+  totalFiles  Int       @default(0)
+  syncedFiles Int       @default(0)
+  failedFiles Int       @default(0)
+  lastSync    DateTime?
+  nextSync    DateTime?
+
+  // OAuth tokens (encrypted)
+  accessToken  String?   @db.Text
+  refreshToken String?   @db.Text
+  tokenExpiry  DateTime?
+
+  connectedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  files DriveFile[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("drive_connections")
+}
+
+model DriveFile {
+  id           String          @id @default(uuid())
+  connectionId String
+  connection   DriveConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  driveFileId   String @unique
+  driveFileName String
+  driveFilePath String
+  mimeType      String
+  fileSize      Int
+
+  driveCreatedAt  DateTime
+  driveModifiedAt DateTime
+
+  syncStatus   String    @default("pending") // 'pending' | 'syncing' | 'completed' | 'failed'
+  syncAttempts Int       @default(0)
+  lastSyncAt   DateTime?
+  errorMessage String?
+
+  // Link to created document
+  documentId String?   @unique
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([connectionId])
+  @@index([syncStatus])
+  @@index([driveFileId])
+  @@map("drive_files")
+}
+
+// ============================================================================
+// INSURANCE
+// ============================================================================
+
+model InsurancePolicy {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String   @unique
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  policyNumber   String   @unique
+  insuranceType  String // 'health' | 'auto' | 'life' | 'property' | 'travel' | 'other'
+  provider       String
+  policyHolder   String
+  insuredMembers String[]
+
+  // Premium
+  premiumAmount    Float
+  premiumFrequency String // 'monthly' | 'quarterly' | 'half-yearly' | 'yearly'
+  coverageAmount   Float
+
+  // Dates
+  startDate   DateTime
+  endDate     DateTime
+  renewalDate DateTime
+  gracePeriod Int?
+
+  status String @default("active") // 'active' | 'expiring_soon' | 'expired' | 'lapsed' | 'claimed'
+
+  // Coverage details (stored as JSON for flexibility)
+  coverage   Json
+  exclusions String[]
+  benefits   Json?
+
+  // Type-specific details (stored as JSON)
+  healthInsurance   Json?
+  autoInsurance     Json?
+  lifeInsurance     Json?
+  propertyInsurance Json?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  claims InsuranceClaim[]
+
+  @@index([userId])
+  @@index([insuranceType])
+  @@index([status])
+  @@index([renewalDate])
+  @@map("insurance_policies")
+}
+
+model InsuranceClaim {
+  id       String          @id @default(uuid())
+  policyId String
+  policy   InsurancePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  claimNumber    String   @unique
+  claimDate      DateTime
+  claimAmount    Float
+  approvedAmount Float?
+
+  status      String @default("submitted") // 'submitted' | 'under_review' | 'approved' | 'rejected' | 'settled'
+  claimType   String
+  description String @db.Text
+
+  documents       String[]
+  settlementDate  DateTime?
+  rejectionReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([policyId])
+  @@index([status])
+  @@index([claimDate])
+  @@map("insurance_claims")
+}
+
+// ============================================================================
+// LEGAL GUIDANCE
+// ============================================================================
+
+model LegalGuidanceRequest {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  scenario String @db.Text
+  category String // 'employment' | 'property' | 'business' | 'contracts' | 'family' | 'consumer' | 'lending' | 'general'
+  country  String
+  region   String
+
+  // Response (stored as JSON)
+  response Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([category])
+  @@index([createdAt])
+  @@map("legal_guidance_requests")
+}
