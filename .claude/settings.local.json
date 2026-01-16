@@ -4,7 +4,19 @@
       "Bash(npx create-next-app:*)",
       "Bash(npm install:*)",
       "Bash(npm run dev:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh issue close:*)",
+      "Bash(npm run build:*)",
+      "Bash(git add:*)",
+      "Bash(gh issue comment:*)",
+      "Bash(git commit:*)",
+      "Bash(if exist .nextdevlock del /F .nextdevlock)",
+      "Bash(npx prisma init:*)",
+      "Bash(npx prisma:*)",
+      "Bash(git push:*)",
+      "Bash(gh issue view:*)"
     ],
     "deny": [],
     "ask": []
